@@ -7,7 +7,7 @@ import argparse
 import random
 from torch.utils.data import Dataset, DataLoader
 from data.data_RGB import get_training_data
-from tensorboardX import SummaryWriter
+from torch.utils.tensorboard import SummaryWriter
 from warmup_scheduler import GradualWarmupScheduler
 from model.MSSNet import DeblurNet
 from train.trainer_dp import Trainer
@@ -21,12 +21,12 @@ parser.add_argument("--lr_min", type = float, default = 1e-6)
 parser.add_argument("--gpu",type=int, default=0)
 parser.add_argument('--max_epoch', type=int, default=3000)
 
-parser.add_argument("--train_datalist",type=str, default='./datalist/datalist_gopro.txt')
-parser.add_argument("--val_datalist",type=str, default='./datalist/datalist_gopro_test.txt')
+parser.add_argument("--train_datalist",type=str, default='/home/ubuntu/MSSNET_train_final/MSSNet/datalist/datalist_kitti_train.txt')
+parser.add_argument("--val_datalist",type=str, default='/home/ubuntu/MSSNET_train_final/MSSNet/datalist/datalist_kitti_val.txt')
 parser.add_argument("--checkdir",type=str,default='./checkpoint')
 parser.add_argument("--loadchdir",type=str,default='./checkpoint/model_00600E.pt')
-parser.add_argument("--data_root_dir",type=str,default='./dataset/GOPRO_Large/train')
-parser.add_argument("--val_root_dir",type=str,default='./dataset/validation_data')
+parser.add_argument("--data_root_dir",type=str,default='/home/ubuntu/MSSNET_train_final/MSSNet/dataset/blur_split/train/sum')
+parser.add_argument("--val_root_dir",type=str,default='/home/ubuntu/MSSNET_train_final/MSSNet/dataset/blur_split/val/sum')
 
 parser.add_argument("--isloadch", action="store_true")
 parser.add_argument("--isval", action="store_true")
@@ -37,7 +37,7 @@ parser.add_argument("--scale",type=int,default=42)
 parser.add_argument("--vscale",type=int,default=42)
 
 parser.set_defaults(isloadch=False)
-parser.set_defaults(isval=False)
+parser.set_defaults(isval=True)
 parser.set_defaults(mgpu=False)
 args = parser.parse_args()
 
@@ -62,6 +62,8 @@ device_ids = [i for i in range(torch.cuda.device_count())]
 if torch.cuda.device_count() > 1:
   print("\n\nLet's use", torch.cuda.device_count(), "GPUs!\n\n")
 
+print(torch.__version__)
+
 def weight_init(m):
     classname = m.__class__.__name__
     if classname.find('Conv') != -1:
@@ -71,6 +73,7 @@ def weight_init(m):
 
 def main():
     print("start")
+    torch.cuda.empty_cache()
 
     if not os.path.exists(train_log_dir):
         os.makedirs(train_log_dir)
@@ -78,7 +81,7 @@ def main():
     if os.path.exists(args.checkdir) == False:
         os.makedirs(args.checkdir)
 
-    train_writer = SummaryWriter(logdir=train_log_dir)
+    train_writer = SummaryWriter(log_dir=train_log_dir)
     deblur_model = DeblurNet(wf=args.wf, scale=args.scale, vscale=args.vscale)
 
     optimizer = torch.optim.Adam(deblur_model.parameters(), lr=lr_initial, betas=(0.9, 0.999),eps=1e-8)

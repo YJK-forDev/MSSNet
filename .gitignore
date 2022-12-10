@@ -1,1 +1,5 @@
 .idea
+kitti_dataset_788_Split/
+dataset/
+checkpoint/
+img/

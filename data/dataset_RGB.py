@@ -139,12 +139,16 @@ class DataLoaderTest(Dataset):
         self.image_files = datalist.readlines()
         self.root_dir = root_dir
 
+    
+      
+
         self.sizex       = len(self.image_files)
 
     def __len__(self):
         return self.sizex
 
     def __getitem__(self, index):
+   
         images_dir = self.image_files[index][0:-1]
         split_images_dir = images_dir.split(' ')
         sharp_image_dir = split_images_dir[0]
@@ -152,7 +156,10 @@ class DataLoaderTest(Dataset):
 
         inp_img = Image.open(os.path.join(self.root_dir, blur_image_dir)).convert('RGB')
         tar_img = Image.open(os.path.join(self.root_dir, sharp_image_dir)).convert('RGB')
-
+        #print("------")
+        #print(inp_img.size)
+        #print(tar_img.size)
+        #print("------")
         inp_img = TF.to_tensor(inp_img)
         tar_img = TF.to_tensor(tar_img)
 

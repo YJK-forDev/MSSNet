@@ -99,7 +99,10 @@ class Decoder(nn.Module):
         enc1, enc2, enc3 = outs
         dec3 = self.decoder_level3(enc3)
 
+        #print(dec3.shape)
+        #print(self.skip_attn2(enc2).shape)
         x = self.up32(dec3, self.skip_attn2(enc2))
+        
         dec2 = self.decoder_level2(x)
 
         x = self.up21(dec2, self.skip_attn1(enc1))
@@ -142,9 +145,16 @@ class SkipUpSample(nn.Module):
         super(SkipUpSample, self).__init__()
         self.up = nn.Sequential(nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False),
                                 nn.Conv2d(in_channels+s_factor, in_channels, 1, stride=1, padding=0, bias=False))
+    
 
     def forward(self, x, y):
         x = self.up(x)
+        """
+        print("=====xy====")
+        print(x.shape)
+        print(y.shape)
+        print("=====xy====")
+        """
         x = x + y
         return x
 

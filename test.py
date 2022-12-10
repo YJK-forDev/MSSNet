@@ -7,17 +7,18 @@ from model.MSSNet_eval import DeblurNet
 import os
 import argparse
 import time
+from metrics import PSNR, SSIM, RMSE
 
 parser = argparse.ArgumentParser(description='DeblurNet test')
-parser.add_argument("--test_datalist",type=str, default='./datalist/datalist_gopro_testset.txt')
+parser.add_argument("--test_datalist",type=str, default='./datalist/datalist_kitti_test.txt')
 parser.add_argument("--data_root_dir",type=str,default='./dataset')
 parser.add_argument("--gpu",type=int, default=0)
-parser.add_argument("--load_dir",type=str,default='./checkpoint/model_03000E.pt')
+parser.add_argument("--load_dir",type=str,default='./checkpoint/MSSNet/model_02882E.pt')
 parser.add_argument("--outdir",type=str,default='./result/MSSNet')
-
-parser.add_argument("--wf",type=int,default=54)
-parser.add_argument("--scale",type=int,default=42)
-parser.add_argument("--vscale",type=int,default=42)
+parser.add_argument("--cropsize",type = int, default = 256)
+parser.add_argument("--wf",type=int,default=20)
+parser.add_argument("--scale",type=int,default=40)
+parser.add_argument("--vscale",type=int,default=40)
 
 parser.add_argument("--is_save", action="store_true")
 parser.add_argument("--is_eval", action="store_true")
@@ -33,7 +34,7 @@ torch.backends.cudnn.enabled = True
 torch.backends.cudnn.benchmark = True
 outdir = args.outdir
 psnr_measure_dir = os.path.join(outdir,'measure')
-
+CROP_SIZE = args.cropsize
 if args.is_save:
     if not os.path.exists(outdir):
         os.makedirs(outdir)
@@ -63,8 +64,13 @@ def main():
         # Warming up
         for iter_idx, data in enumerate(dataloader):
             print('Warming up %d iter'%(iter_idx))
+            
             gt, blur, _ = data
+            #print(blur)
+            #blur = blur.to(GPU)
             blur= blur.to(device)
+            #print("----")
+            #print(blur)
             torch.cuda.synchronize()
             init_time = time.time()
             _ = deblur_model(blur)
@@ -77,6 +83,9 @@ def main():
         # Test
         itr_time = 0.0
         total_psnr = 0.0
+        total_ssim = 0.0
+        total_rmse = 0.0
+        
         for iter_idx, data in enumerate(dataloader):
             gt, blur, blur_name = data
 
@@ -90,13 +99,39 @@ def main():
             itr_time += cur_time
 
             if args.is_eval:
-                out_numpy = out.squeeze(0).cpu().numpy()
-                gt_numpy = gt.squeeze(0).cpu().numpy()
+                #print("type은 ?")
+                #print(type(out.squeeze(0).cpu()))
+                #print("shape은 ? ")
+                #print(out.squeeze(0).cpu().numpy()[:,720-370:,1280-1224:].shape)
+                #print(out.squeeze(0).cpu().numpy().shape)
+                
+                #out_numpy = torch.tensor(out.squeeze(0).cpu().numpy())
+                #gt_numpy = torch.tensor(gt.squeeze(0).cpu().numpy())
+                
+                # padding 했을 때 
+                #out_numpy = torch.tensor(out.squeeze(0).cpu().numpy()[:,720-370:,1280-1224:])
 
-                psnr = peak_signal_noise_ratio(out_numpy, gt_numpy, data_range=1)
+                # kitti crop 했을 때 
+                out_numpy = torch.tensor(out.squeeze(0).cpu().numpy())
+
+                gt_numpy = torch.tensor(gt.squeeze(0).cpu().numpy()[:,:368,:1216])
+                
+
+                #원래 아래 줄이었는데 업데이트함
+                #psnr = peak_signal_noise_ratio(out_numpy, gt_numpy, data_range=1)
+
+                psnr = PSNR(out_numpy,gt_numpy)
+                ssim = SSIM(out_numpy,gt_numpy)
+                rmse = RMSE(out_numpy,gt_numpy)
                 total_psnr += psnr
+                total_ssim += ssim
+                total_rmse += rmse
+                
 
                 print('%d iter PSNR: %.2f, time:%.3f' % (iter_idx + 1, psnr, cur_time))
+                print('%d iter SSIM: %.2f, time:%.3f' % (iter_idx + 1, ssim, cur_time))
+                print('%d iter RMSE: %.2f, time:%.3f' % (iter_idx + 1, rmse, cur_time))
+
             else:
                 print('%d iter, time:%f'%(iter_idx+1,cur_time))
 
@@ -105,14 +140,22 @@ def main():
                 save_dir = os.path.join(outdir, deblur_name)
                 out += 0.5 / 255
                 out = torch.clamp(out, 0, 1)
+
+                # padding 했을 때
+                #out = F.to_pil_image(out.squeeze(0).cpu()[:,720-370:,1280-1224:], 'RGB')
+
+                # crop 했을 때
                 out = F.to_pil_image(out.squeeze(0).cpu(), 'RGB')
                 out.save(save_dir)
-
+        
 
     print('Test Finish')
     print('==========================================================')
     if args.is_eval:
-        print('The average PSNR: %.4f dB, Time: %.4f' % (total_psnr/test_num, itr_time/test_num))
+        print('The average PSNR: %.6f dB, Time: %.6f' % (total_psnr/test_num, itr_time))
+        print('The average SSIM: %.6f dB, Time: %.6f' % (total_ssim/test_num, itr_time))
+        print('The average RMSE: %.6f dB, Time: %.6f' % (total_rmse/test_num, itr_time))
+        
     else:
         print('average test time: %f'%(itr_time/test_num))
 
